@@ -7,6 +7,8 @@ import net.minecraft.resources.Identifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Locale;
+
 public class Mochaccino implements ModInitializer {
 	public static final String MOD_ID = "mochaccino";
 
@@ -22,6 +24,10 @@ public class Mochaccino implements ModInitializer {
 		// Proceed with mild caution.
 
 		LOGGER.info("Hello Fabric world!");
+	}
+
+	public static boolean isMacOS() {
+		return System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("mac");
 	}
 
 	public static Identifier id(String path) {
