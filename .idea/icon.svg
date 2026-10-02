@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="106 98 301 316" width="602" height="632">
+  <defs>
+    <linearGradient id="mocha" gradientUnits="userSpaceOnUse" x1="0" y1="98" x2="0" y2="414">
+      <stop offset="0" stop-color="#A5714F"/>
+      <stop offset="1" stop-color="#5C3A29"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(-2 0)" fill="none" stroke="none">
+    <!-- steam -->
+    <path d="M190 195 C165 170, 215 150, 190 112" stroke="url(#mocha)" stroke-width="28" stroke-linecap="round"/>
+    <path d="M254 195 C229 170, 279 150, 254 112" stroke="url(#mocha)" stroke-width="28" stroke-linecap="round"/>
+    <!-- handle -->
+    <g transform="translate(-18 0)">
+      <path d="M322 264 H350 Q410 264 410 320 Q410 376 350 376 H322" stroke="url(#mocha)" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+    <!-- mug body -->
+    <path d="M108 232 H324 V352 Q324 414 262 414 H170 Q108 414 108 352 Z" fill="url(#mocha)"/>
+  </g>
+</svg>

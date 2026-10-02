@@ -11,7 +11,9 @@ classes/
 
 # idea
 
-.idea/
+.idea/*
+!.idea/runConfigurations/
+!.idea/icon.svg
 *.iml
 *.ipr
 *.iws
