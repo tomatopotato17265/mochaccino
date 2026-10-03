@@ -35,7 +35,7 @@ public final class MacMenuName {
 		}
 	}
 
-	// adds a settings item to the application menu that opens the Options screen when clicked
+	// wires the application menu's existing "Settings…" item to run the given action
 	public static void addSettingsItem(Runnable action) {
 		long app = send(ObjCRuntime.objc_getClass("NSApplication"), "sharedApplication");
 		long mainMenu = send(app, "mainMenu");
@@ -56,26 +56,20 @@ public final class MacMenuName {
 		ObjCRuntime.objc_registerClassPair(targetClass);
 		long target = send(send(targetClass, "alloc"), "init");
 
-		long item = JNI.invokePPPPPP(
-			send(ObjCRuntime.objc_getClass("NSMenuItem"), "alloc"),
-			ObjCRuntime.sel_registerName("initWithTitle:action:keyEquivalent:"),
-			nsString("Settings…"),
-			ObjCRuntime.sel_registerName("openSettings:"),
-			nsString(","),
-			MSG_SEND
-		);
-		send(item, "setTarget:", target);
-
-		// Sits below "About" and its separator, followed by a separator of its own.
 		long count = send(appMenu, "numberOfItems");
-		long index = Math.min(2L, count);
-		JNI.invokePPPPP(appMenu, ObjCRuntime.sel_registerName("insertItem:atIndex:"), item, index, MSG_SEND);
-		JNI.invokePPPPP(appMenu, ObjCRuntime.sel_registerName("insertItem:atIndex:"),
-			send(ObjCRuntime.objc_getClass("NSMenuItem"), "separatorItem"), index + 1, MSG_SEND);
+		for (long i = 0; i < count; i++) {
+			long item = send(appMenu, "itemAtIndex:", i);
+			if (javaString(send(item, "keyEquivalent")).equals(",")) {
+				send(item, "setTarget:", target);
+				send(item, "setAction:", ObjCRuntime.sel_registerName("openSettings:"));
+				return;
+			}
+		}
 	}
 
 	private static ActionCallback actionCallback;
 
+	@FunctionalInterface
 	private interface ActionCallbackI extends CallbackI {
 		Callback.Descriptor DESCRIPTOR = new Callback.Descriptor(
 			ActionCallbackI.class,
