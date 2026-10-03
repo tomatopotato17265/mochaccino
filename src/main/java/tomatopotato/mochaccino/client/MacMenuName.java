@@ -1,0 +1,148 @@
+package tomatopotato.mochaccino.client;
+
+import org.lwjgl.system.APIUtil;
+import org.lwjgl.system.Callback;
+import org.lwjgl.system.CallbackI;
+import org.lwjgl.system.JNI;
+import org.lwjgl.system.MemoryUtil;
+import org.lwjgl.system.libffi.LibFFI;
+import org.lwjgl.system.macosx.ObjCRuntime;
+
+import java.lang.invoke.MethodHandles;
+
+// renames the menu bar app name from "java" by talking to AppKit through LWJGL's ObjCRuntime
+public final class MacMenuName {
+	private static final long MSG_SEND = ObjCRuntime.getLibrary().getFunctionAddress("objc_msgSend");
+
+	private MacMenuName() {
+	}
+
+	public static void rename(String name) {
+		long app = send(ObjCRuntime.objc_getClass("NSApplication"), "sharedApplication");
+		long mainMenu = send(app, "mainMenu");
+		if (mainMenu == ObjCRuntime.nil) {
+			return;
+		}
+
+		long appItem = send(mainMenu, "itemAtIndex:", 0L);
+		long appMenu = send(appItem, "submenu");
+		long title = nsString(name);
+
+		send(appItem, "setTitle:", title);
+		if (appMenu != ObjCRuntime.nil) {
+			send(appMenu, "setTitle:", title);
+			renameItems(appMenu, name);
+		}
+	}
+
+	// adds a settings item to the application menu that opens the Options screen when clicked
+	public static void addSettingsItem(Runnable action) {
+		long app = send(ObjCRuntime.objc_getClass("NSApplication"), "sharedApplication");
+		long mainMenu = send(app, "mainMenu");
+		if (mainMenu == ObjCRuntime.nil) {
+			return;
+		}
+		long appMenu = send(send(mainMenu, "itemAtIndex:", 0L), "submenu");
+		if (appMenu == ObjCRuntime.nil) {
+			return;
+		}
+
+		actionCallback = new ActionCallback(action);
+		long targetClass = ObjCRuntime.objc_allocateClassPair(ObjCRuntime.objc_getClass("NSObject"), "MochaccinoMenuTarget", 0);
+		if (targetClass == ObjCRuntime.nil) {
+			return;
+		}
+		ObjCRuntime.class_addMethod(targetClass, ObjCRuntime.sel_registerName("openSettings:"), actionCallback.address(), "v@:@");
+		ObjCRuntime.objc_registerClassPair(targetClass);
+		long target = send(send(targetClass, "alloc"), "init");
+
+		long item = JNI.invokePPPPPP(
+			send(ObjCRuntime.objc_getClass("NSMenuItem"), "alloc"),
+			ObjCRuntime.sel_registerName("initWithTitle:action:keyEquivalent:"),
+			nsString("Settings…"),
+			ObjCRuntime.sel_registerName("openSettings:"),
+			nsString(","),
+			MSG_SEND
+		);
+		send(item, "setTarget:", target);
+
+		// Sits below "About" and its separator, followed by a separator of its own.
+		long count = send(appMenu, "numberOfItems");
+		long index = Math.min(2L, count);
+		JNI.invokePPPPP(appMenu, ObjCRuntime.sel_registerName("insertItem:atIndex:"), item, index, MSG_SEND);
+		JNI.invokePPPPP(appMenu, ObjCRuntime.sel_registerName("insertItem:atIndex:"),
+			send(ObjCRuntime.objc_getClass("NSMenuItem"), "separatorItem"), index + 1, MSG_SEND);
+	}
+
+	private static ActionCallback actionCallback;
+
+	private interface ActionCallbackI extends CallbackI {
+		Callback.Descriptor DESCRIPTOR = new Callback.Descriptor(
+			ActionCallbackI.class,
+			MethodHandles.lookup(),
+			APIUtil.apiCreateCIF(LibFFI.ffi_type_void, LibFFI.ffi_type_pointer, LibFFI.ffi_type_pointer, LibFFI.ffi_type_pointer)
+		);
+
+		@Override
+		default Callback.Descriptor getDescriptor() {
+			return DESCRIPTOR;
+		}
+
+		@Override
+		default void callback(long ret, long args) {
+			invoke();
+		}
+		void invoke();
+	}
+
+	private static final class ActionCallback extends Callback implements ActionCallbackI {
+		private final Runnable action;
+
+		ActionCallback(Runnable action) {
+			super(DESCRIPTOR);
+			this.action = action;
+		}
+
+		@Override
+		public void invoke() {
+			action.run();
+		}
+	}
+
+	// "About java", "Hide java", "Quit java", etc
+	private static void renameItems(long menu, String name) {
+		long count = send(menu, "numberOfItems");
+		for (long i = 0; i < count; i++) {
+			long item = send(menu, "itemAtIndex:", i);
+			String itemTitle = javaString(send(item, "title"));
+			if (itemTitle.contains("java")) {
+				send(item, "setTitle:", nsString(itemTitle.replace("java", name)));
+			}
+		}
+	}
+
+	private static long send(long receiver, String selector) {
+		return JNI.invokePPP(receiver, ObjCRuntime.sel_registerName(selector), MSG_SEND);
+	}
+
+	private static long send(long receiver, String selector, long arg) {
+		return JNI.invokePPPP(receiver, ObjCRuntime.sel_registerName(selector), arg, MSG_SEND);
+	}
+
+	private static long nsString(String value) {
+		java.nio.ByteBuffer utf8 = MemoryUtil.memUTF8(value);
+		try {
+			return send(ObjCRuntime.objc_getClass("NSString"), "stringWithUTF8String:", MemoryUtil.memAddress(utf8));
+		} finally {
+			MemoryUtil.memFree(utf8);
+		}
+	}
+
+	private static String javaString(long nsString) {
+		if (nsString == ObjCRuntime.nil) {
+			return "";
+		}
+		String value = MemoryUtil.memUTF8Safe(send(nsString, "UTF8String"));
+		return value == null ? "" : value;
+	}
+}
