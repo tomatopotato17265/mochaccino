@@ -67,6 +67,60 @@ public final class MacMenuName {
 		}
 	}
 
+	// adds File, Edit and View after the application menu, and Help after the existing Window menu
+	public static void addStandardMenus() {
+		long app = send(ObjCRuntime.objc_getClass("NSApplication"), "sharedApplication");
+		long mainMenu = send(app, "mainMenu");
+		if (mainMenu == ObjCRuntime.nil) {
+			return;
+		}
+
+		long file = addMenu(mainMenu, "File", 1L);
+		addItem(file, "Close Window", "performClose:", "w");
+
+		long edit = addMenu(mainMenu, "Edit", 2L);
+		addItem(edit, "Undo", "undo:", "z");
+		addItem(edit, "Redo", "redo:", "Z");
+		addSeparator(edit);
+		addItem(edit, "Cut", "cut:", "x");
+		addItem(edit, "Copy", "copy:", "c");
+		addItem(edit, "Paste", "paste:", "v");
+		addItem(edit, "Select All", "selectAll:", "a");
+
+		long view = addMenu(mainMenu, "View", 3L);
+		long fullScreen = addItem(view, "Enter Full Screen", "toggleFullScreen:", "f");
+
+		send(fullScreen, "setKeyEquivalentModifierMask:", (1L << 20) | (1L << 18));
+
+		long help = addMenu(mainMenu, "Help", send(mainMenu, "numberOfItems"));
+		send(app, "setHelpMenu:", help);
+	}
+
+	private static long addMenu(long mainMenu, String title, long index) {
+		long item = send(send(ObjCRuntime.objc_getClass("NSMenuItem"), "alloc"), "init");
+		long menu = send(send(ObjCRuntime.objc_getClass("NSMenu"), "alloc"), "initWithTitle:", nsString(title));
+		send(item, "setSubmenu:", menu);
+		JNI.invokePPPPP(mainMenu, ObjCRuntime.sel_registerName("insertItem:atIndex:"), item, index, MSG_SEND);
+		return menu;
+	}
+
+	private static long addItem(long menu, String title, String action, String key) {
+		long item = JNI.invokePPPPPP(
+			send(ObjCRuntime.objc_getClass("NSMenuItem"), "alloc"),
+			ObjCRuntime.sel_registerName("initWithTitle:action:keyEquivalent:"),
+			nsString(title),
+			ObjCRuntime.sel_registerName(action),
+			nsString(key),
+			MSG_SEND
+		);
+		send(menu, "addItem:", item);
+		return item;
+	}
+
+	private static void addSeparator(long menu) {
+		send(menu, "addItem:", send(ObjCRuntime.objc_getClass("NSMenuItem"), "separatorItem"));
+	}
+
 	private static ActionCallback actionCallback;
 
 	@FunctionalInterface

@@ -36,6 +36,7 @@ public class MochaccinoClient implements ClientModInitializer {
 			if (windowTitle != null && !windowTitle.isEmpty()) {
 				MacMenuName.rename(windowTitle);
 			}
+			MacMenuName.addStandardMenus();
 			MacMenuName.addSettingsItem(() -> client.execute(() ->
 				client.setScreenAndShow(new OptionsScreen(client.gui.screen(), client.options))));
 		} catch (Throwable t) {
