@@ -44,6 +44,13 @@ public class MochaccinoClient implements ClientModInitializer {
 				}
 			}
 			MacMenuName.addStandardMenus();
+			MacMenuName.keepRenderingWhileTracking(() -> {
+				try {
+					client.renderFrame(true);
+				} catch (Throwable t) {
+					Mochaccino.LOGGER.warn("Could not render a frame during menu tracking", t);
+				}
+			});
 			MacMenuName.addSettingsItem(() -> client.execute(() ->
 				client.setScreenAndShow(new OptionsScreen(client.gui.screen(), client.options))));
 		} catch (Throwable t) {

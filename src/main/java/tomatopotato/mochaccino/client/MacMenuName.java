@@ -1,14 +1,18 @@
 package tomatopotato.mochaccino.client;
 
+import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.APIUtil;
 import org.lwjgl.system.Callback;
 import org.lwjgl.system.CallbackI;
 import org.lwjgl.system.JNI;
+import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
+import org.lwjgl.system.libffi.FFICIF;
 import org.lwjgl.system.libffi.LibFFI;
 import org.lwjgl.system.macosx.ObjCRuntime;
 
 import java.lang.invoke.MethodHandles;
+import java.nio.ByteBuffer;
 
 // renames the menu bar app name from "java" by talking to AppKit through LWJGL's ObjCRuntime
 public final class MacMenuName {
@@ -86,6 +90,45 @@ public final class MacMenuName {
 		}
 	}
 
+	public static void keepRenderingWhileTracking(Runnable frame) {
+		timerCallback = new ActionCallback(frame);
+		long targetClass = ObjCRuntime.objc_allocateClassPair(ObjCRuntime.objc_getClass("NSObject"), "MochaccinoTimerTarget", 0);
+		if (targetClass == ObjCRuntime.nil) {
+			return;
+		}
+		long tick = ObjCRuntime.sel_registerName("tick:");
+		ObjCRuntime.class_addMethod(targetClass, tick, timerCallback.address(), "v@:@");
+		ObjCRuntime.objc_registerClassPair(targetClass);
+		long target = send(send(targetClass, "alloc"), "init");
+
+		try (MemoryStack stack = MemoryStack.stackPush()) {
+			FFICIF cif = APIUtil.apiCreateCIF(
+				LibFFI.ffi_type_pointer,
+				LibFFI.ffi_type_pointer, LibFFI.ffi_type_pointer, LibFFI.ffi_type_double,
+				LibFFI.ffi_type_pointer, LibFFI.ffi_type_pointer, LibFFI.ffi_type_pointer, LibFFI.ffi_type_uint8
+			);
+
+			PointerBuffer args = stack.mallocPointer(7);
+			args.put(0, pointerTo(stack, ObjCRuntime.objc_getClass("NSTimer")));
+			args.put(1, pointerTo(stack, ObjCRuntime.sel_registerName("timerWithTimeInterval:target:selector:userInfo:repeats:")));
+			args.put(2, MemoryUtil.memAddress(stack.malloc(8).putDouble(0, 1.0 / 60.0)));
+			args.put(3, pointerTo(stack, target));
+			args.put(4, pointerTo(stack, tick));
+			args.put(5, pointerTo(stack, ObjCRuntime.nil));
+			args.put(6, MemoryUtil.memAddress(stack.malloc(1).put(0, (byte) 1)));
+			ByteBuffer result = stack.malloc(8);
+			LibFFI.ffi_call(cif, MSG_SEND, result, args);
+
+			long timer = result.getLong(0);
+			long runLoop = send(ObjCRuntime.objc_getClass("NSRunLoop"), "currentRunLoop");
+			send(runLoop, "addTimer:forMode:", timer, nsString("NSEventTrackingRunLoopMode"));
+		}
+	}
+
+	private static long pointerTo(MemoryStack stack, long value) {
+		return MemoryUtil.memAddress(stack.malloc(8).putLong(0, value));
+	}
+
 	// adds File, Edit and View after the application menu, and Help after the existing Window menu
 	public static void addStandardMenus() {
 		long app = send(ObjCRuntime.objc_getClass("NSApplication"), "sharedApplication");
@@ -141,6 +184,7 @@ public final class MacMenuName {
 	}
 
 	private static ActionCallback actionCallback;
+	private static ActionCallback timerCallback;
 
 	@FunctionalInterface
 	private interface ActionCallbackI extends CallbackI {
