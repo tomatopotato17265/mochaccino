@@ -35,6 +35,24 @@ public final class MacMenuName {
 		}
 	}
 
+	// sets the Dock icon from encoded image data (PNG, etc.)
+	public static void setIcon(byte[] image) {
+		java.nio.ByteBuffer bytes = MemoryUtil.memAlloc(image.length);
+		try {
+			bytes.put(image).flip();
+
+			long data = send(ObjCRuntime.objc_getClass("NSData"), "dataWithBytes:length:", MemoryUtil.memAddress(bytes), image.length);
+			long icon = send(send(ObjCRuntime.objc_getClass("NSImage"), "alloc"), "initWithData:", data);
+			if (icon == ObjCRuntime.nil) {
+				return;
+			}
+			long app = send(ObjCRuntime.objc_getClass("NSApplication"), "sharedApplication");
+			send(app, "setApplicationIconImage:", icon);
+		} finally {
+			MemoryUtil.memFree(bytes);
+		}
+	}
+
 	// wires the application menu's existing "Settings…" item to run the given action
 	public static void addSettingsItem(Runnable action) {
 		long app = send(ObjCRuntime.objc_getClass("NSApplication"), "sharedApplication");
@@ -52,6 +70,7 @@ public final class MacMenuName {
 		if (targetClass == ObjCRuntime.nil) {
 			return;
 		}
+
 		ObjCRuntime.class_addMethod(targetClass, ObjCRuntime.sel_registerName("openSettings:"), actionCallback.address(), "v@:@");
 		ObjCRuntime.objc_registerClassPair(targetClass);
 		long target = send(send(targetClass, "alloc"), "init");
@@ -175,6 +194,10 @@ public final class MacMenuName {
 
 	private static long send(long receiver, String selector, long arg) {
 		return JNI.invokePPPP(receiver, ObjCRuntime.sel_registerName(selector), arg, MSG_SEND);
+	}
+
+	private static long send(long receiver, String selector, long arg1, long arg2) {
+		return JNI.invokePPPPP(receiver, ObjCRuntime.sel_registerName(selector), arg1, arg2, MSG_SEND);
 	}
 
 	private static long nsString(String value) {

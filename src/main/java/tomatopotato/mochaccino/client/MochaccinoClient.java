@@ -10,6 +10,8 @@ import org.lwjgl.sdl.SDLVideo;
 
 import tomatopotato.mochaccino.Mochaccino;
 
+import java.io.InputStream;
+
 public class MochaccinoClient implements ClientModInitializer {
 	private static volatile boolean clientReady = false;
 
@@ -35,6 +37,11 @@ public class MochaccinoClient implements ClientModInitializer {
 			String windowTitle = SDLVideo.SDL_GetWindowTitle(client.getWindow().handle());
 			if (windowTitle != null && !windowTitle.isEmpty()) {
 				MacMenuName.rename(windowTitle);
+			}
+			try (InputStream icon = MochaccinoClient.class.getResourceAsStream("/assets/mochaccino/icon.png")) {
+				if (icon != null) {
+					MacMenuName.setIcon(icon.readAllBytes());
+				}
 			}
 			MacMenuName.addStandardMenus();
 			MacMenuName.addSettingsItem(() -> client.execute(() ->
