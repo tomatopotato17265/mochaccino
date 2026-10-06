@@ -104,25 +104,26 @@ public final class MacMenuName {
 			return;
 		}
 
-		actionCallback = new ActionCallback(action);
-		long targetClass = ObjCRuntime.objc_allocateClassPair(ObjCRuntime.objc_getClass("NSObject"), "MochaccinoMenuTarget", 0);
-		if (targetClass == ObjCRuntime.nil) {
-			return;
-		}
-
-		ObjCRuntime.class_addMethod(targetClass, ObjCRuntime.sel_registerName("openSettings:"), actionCallback.address(), "v@:@");
-		ObjCRuntime.objc_registerClassPair(targetClass);
-		long target = send(send(targetClass, "alloc"), "init");
+		long openSettings = registerAction("openSettings:", action);
 
 		long count = send(appMenu, "numberOfItems");
 		for (long i = 0; i < count; i++) {
 			long item = send(appMenu, "itemAtIndex:", i);
 			if (javaString(send(item, "keyEquivalent")).equals(",")) {
-				send(item, "setTarget:", target);
-				send(item, "setAction:", ObjCRuntime.sel_registerName("openSettings:"));
+				send(item, "setTarget:", actionTarget);
+				send(item, "setAction:", openSettings);
 				return;
 			}
 		}
+	}
+
+	public static void addNewWorldItem(Runnable action) {
+		if (fileMenu == ObjCRuntime.nil) {
+			return;
+		}
+		long item = addItem(fileMenu, "New World", "newWorld:", "");
+		send(item, "setTarget:", actionTarget == ObjCRuntime.nil ? registerTarget() : actionTarget);
+		send(item, "setAction:", registerAction("newWorld:", action));
 	}
 
 	public static void keepRenderingWhileTracking(Runnable frame) {
@@ -172,8 +173,7 @@ public final class MacMenuName {
 			return;
 		}
 
-		long file = addMenu(mainMenu, "File", 1L);
-		addItem(file, "Close Window", "performClose:", "w");
+		fileMenu = addMenu(mainMenu, "File", 1L);
 
 		long edit = addMenu(mainMenu, "Edit", 2L);
 		addItem(edit, "Undo", "undo:", "z");
@@ -189,8 +189,47 @@ public final class MacMenuName {
 
 		send(fullScreen, "setKeyEquivalentModifierMask:", (1L << 20) | (1L << 18));
 
+		long windowMenu = send(app, "windowsMenu");
+		if (windowMenu != ObjCRuntime.nil && !hasKeyEquivalent(windowMenu, "w")) {
+			addItem(windowMenu, "Close Window", "performClose:", "w");
+		}
+
 		long help = addMenu(mainMenu, "Help", send(mainMenu, "numberOfItems"));
 		send(app, "setHelpMenu:", help);
+	}
+
+	private static long fileMenu = ObjCRuntime.nil;
+
+	private static boolean hasKeyEquivalent(long menu, String key) {
+		long count = send(menu, "numberOfItems");
+		for (long i = 0; i < count; i++) {
+			if (javaString(send(send(menu, "itemAtIndex:", i), "keyEquivalent")).equals(key)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private static long actionTarget = ObjCRuntime.nil;
+	private static long actionTargetClass = ObjCRuntime.nil;
+	private static final java.util.List<ActionCallback> actionCallbacks = new java.util.ArrayList<>();
+
+	private static long registerTarget() {
+		actionTargetClass = ObjCRuntime.objc_allocateClassPair(ObjCRuntime.objc_getClass("NSObject"), "MochaccinoMenuTarget", 0);
+		ObjCRuntime.objc_registerClassPair(actionTargetClass);
+		actionTarget = send(send(actionTargetClass, "alloc"), "init");
+		return actionTarget;
+	}
+
+	private static long registerAction(String name, Runnable action) {
+		if (actionTarget == ObjCRuntime.nil) {
+			registerTarget();
+		}
+		ActionCallback callback = new ActionCallback(action);
+		actionCallbacks.add(callback);
+		long selector = ObjCRuntime.sel_registerName(name);
+		ObjCRuntime.class_addMethod(actionTargetClass, selector, callback.address(), "v@:@");
+		return selector;
 	}
 
 	private static long addMenu(long mainMenu, String title, long index) {
@@ -218,7 +257,6 @@ public final class MacMenuName {
 		send(menu, "addItem:", send(ObjCRuntime.objc_getClass("NSMenuItem"), "separatorItem"));
 	}
 
-	private static ActionCallback actionCallback;
 	private static ActionCallback timerCallback;
 
 	@FunctionalInterface

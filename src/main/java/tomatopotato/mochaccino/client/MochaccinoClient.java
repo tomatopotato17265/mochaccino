@@ -4,7 +4,9 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.options.OptionsScreen;
+import net.minecraft.client.gui.screens.worldselection.CreateWorldScreen;
 
 import org.lwjgl.sdl.SDLVideo;
 
@@ -47,6 +49,13 @@ public class MochaccinoClient implements ClientModInitializer {
 			});
 			MacMenuName.addSettingsItem(() -> client.execute(() ->
 				client.setScreenAndShow(new OptionsScreen(client.gui.screen(), client.options))));
+			MacMenuName.addNewWorldItem(() -> client.execute(() -> {
+				// a world can't be created while another one is open
+				if (client.level == null) {
+					Screen previous = client.gui.screen();
+					CreateWorldScreen.openFresh(client, () -> client.setScreenAndShow(previous));
+				}
+			}));
 		} catch (Throwable t) {
 			Mochaccino.LOGGER.warn("Could not set up the macOS menu bar", t);
 		}
