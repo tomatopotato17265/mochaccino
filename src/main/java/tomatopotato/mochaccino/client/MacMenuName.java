@@ -40,21 +40,56 @@ public final class MacMenuName {
 	}
 
 	// sets the Dock icon from encoded image data (PNG, etc.)
-	public static void setIcon(byte[] image) {
+	public static boolean setIcon(byte[] image) {
+		long icon = imageFromBytes(image);
+		if (icon == ObjCRuntime.nil) {
+			return false;
+		}
+		if (originalIconPng == null) {
+			// remember what the game had before we replaced it, so restoreIcon can put it back
+			originalIconPng = currentIconPng();
+		}
+		send(send(ObjCRuntime.objc_getClass("NSApplication"), "sharedApplication"), "setApplicationIconImage:", icon);
+		return true;
+	}
+
+	private static long imageFromBytes(byte[] image) {
 		java.nio.ByteBuffer bytes = MemoryUtil.memAlloc(image.length);
 		try {
 			bytes.put(image).flip();
-
 			long data = send(ObjCRuntime.objc_getClass("NSData"), "dataWithBytes:length:", MemoryUtil.memAddress(bytes), image.length);
-			long icon = send(send(ObjCRuntime.objc_getClass("NSImage"), "alloc"), "initWithData:", data);
-			if (icon == ObjCRuntime.nil) {
-				return;
-			}
-			long app = send(ObjCRuntime.objc_getClass("NSApplication"), "sharedApplication");
-			send(app, "setApplicationIconImage:", icon);
+			return send(send(ObjCRuntime.objc_getClass("NSImage"), "alloc"), "initWithData:", data);
 		} finally {
 			MemoryUtil.memFree(bytes);
 		}
+	}
+
+	private static byte[] originalIconPng;
+
+	// puts back the icon the game had before setIcon replaced it
+	public static void restoreIcon() {
+		long icon = originalIconPng == null ? ObjCRuntime.nil : imageFromBytes(originalIconPng);
+		send(send(ObjCRuntime.objc_getClass("NSApplication"), "sharedApplication"), "setApplicationIconImage:", icon);
+	}
+
+	public static byte[] currentIconPng() {
+		long app = send(ObjCRuntime.objc_getClass("NSApplication"), "sharedApplication");
+		long tiff = send(send(app, "applicationIconImage"), "TIFFRepresentation");
+		if (tiff == ObjCRuntime.nil) {
+			return null;
+		}
+		long rep = send(ObjCRuntime.objc_getClass("NSBitmapImageRep"), "imageRepWithData:", tiff);
+		if (rep == ObjCRuntime.nil) {
+			return null;
+		}
+		long png = send(rep, "representationUsingType:properties:", 4L, send(ObjCRuntime.objc_getClass("NSDictionary"), "dictionary")); // 4 = NSBitmapImageFileTypePNG
+		if (png == ObjCRuntime.nil) {
+			return null;
+		}
+		long length = send(png, "length");
+		byte[] result = new byte[(int) length];
+		MemoryUtil.memByteBuffer(send(png, "bytes"), (int) length).get(result);
+		return result;
 	}
 
 	// wires the application menu's existing "Settings…" item to run the given action
