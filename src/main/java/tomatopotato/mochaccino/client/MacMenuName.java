@@ -122,7 +122,7 @@ public final class MacMenuName {
 		if (fileMenu == ObjCRuntime.nil) {
 			return;
 		}
-		long item = addItem(fileMenu, "New World", "newWorld:", "");
+		long item = addItem(fileMenu, "New World", "newWorld:", "n");
 		send(item, "setTarget:", actionTarget == ObjCRuntime.nil ? registerTarget() : actionTarget);
 		send(item, "setAction:", registerAction("newWorld:", action));
 	}
