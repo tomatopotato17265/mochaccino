@@ -4,6 +4,9 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.events.ContainerEventHandler;
+import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.options.OptionsScreen;
 import net.minecraft.client.gui.screens.worldselection.CreateWorldScreen;
@@ -11,6 +14,8 @@ import net.minecraft.client.gui.screens.worldselection.CreateWorldScreen;
 import org.lwjgl.sdl.SDLVideo;
 
 import tomatopotato.mochaccino.Mochaccino;
+
+import java.util.function.Consumer;
 
 public class MochaccinoClient implements ClientModInitializer {
 	private static volatile boolean clientReady = false;
@@ -32,6 +37,25 @@ public class MochaccinoClient implements ClientModInitializer {
 		});
 	}
 
+	private static EditBox focusedEditBox(Minecraft client) {
+		Screen screen = client.gui.screen();
+		if (screen == null) {
+			return null;
+		}
+		GuiEventListener focused = screen.getFocused();
+		while (focused instanceof ContainerEventHandler container && container.getFocused() != null) {
+			focused = container.getFocused();
+		}
+		return focused instanceof EditBox box && box.canConsumeInput() ? box : null;
+	}
+
+	private static void withEditBox(Minecraft client, Consumer<EditBox> action) {
+		EditBox box = focusedEditBox(client);
+		if (box != null) {
+			action.accept(box);
+		}
+	}
+
 	private static void run(Minecraft client) {
 		try {
 			String windowTitle = SDLVideo.SDL_GetWindowTitle(client.getWindow().handle());
@@ -50,6 +74,20 @@ public class MochaccinoClient implements ClientModInitializer {
 			});
 			MacMenuName.addSettingsItem(() -> client.execute(() ->
 				client.setScreenAndShow(new OptionsScreen(client.gui.screen(), client.options))));
+
+			MacMenuName.addEditActions(
+				() -> focusedEditBox(client) != null,
+				() -> withEditBox(client, box -> {
+					client.keyboardHandler.setClipboard(box.getHighlighted());
+					box.insertText("");
+				}),
+				() -> withEditBox(client, box -> client.keyboardHandler.setClipboard(box.getHighlighted())),
+				() -> withEditBox(client, box -> box.insertText(client.keyboardHandler.getClipboard())),
+				() -> withEditBox(client, box -> {
+					box.moveCursorToEnd(false);
+					box.setHighlightPos(0);
+				})
+			);
 			MacMenuName.addNewWorldItem(() -> client.execute(() -> {
 				// a world can't be created while another one is open
 				if (client.level == null) {

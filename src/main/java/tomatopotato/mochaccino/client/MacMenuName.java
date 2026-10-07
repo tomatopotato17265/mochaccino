@@ -13,6 +13,7 @@ import org.lwjgl.system.macosx.ObjCRuntime;
 
 import java.lang.invoke.MethodHandles;
 import java.nio.ByteBuffer;
+import java.util.function.BooleanSupplier;
 
 // renames the menu bar app name from "java" by talking to AppKit through LWJGL's ObjCRuntime
 public final class MacMenuName {
@@ -175,14 +176,11 @@ public final class MacMenuName {
 
 		fileMenu = addMenu(mainMenu, "File", 1L);
 
-		long edit = addMenu(mainMenu, "Edit", 2L);
-		addItem(edit, "Undo", "undo:", "z");
-		addItem(edit, "Redo", "redo:", "Z");
-		addSeparator(edit);
-		addItem(edit, "Cut", "cut:", "x");
-		addItem(edit, "Copy", "copy:", "c");
-		addItem(edit, "Paste", "paste:", "v");
-		addItem(edit, "Select All", "selectAll:", "a");
+		editMenu = addMenu(mainMenu, "Edit", 2L);
+		addItem(editMenu, "Cut", "cut:", "x");
+		addItem(editMenu, "Copy", "copy:", "c");
+		addItem(editMenu, "Paste", "paste:", "v");
+		addItem(editMenu, "Select All", "selectAll:", "a");
 
 		long view = addMenu(mainMenu, "View", 3L);
 		long fullScreen = addItem(view, "Enter Full Screen", "toggleFullScreen:", "f");
@@ -199,6 +197,37 @@ public final class MacMenuName {
 	}
 
 	private static long fileMenu = ObjCRuntime.nil;
+	private static long editMenu = ObjCRuntime.nil;
+
+	public static void addEditActions(BooleanSupplier textFocused, Runnable cut, Runnable copy, Runnable paste, Runnable selectAll) {
+		if (editMenu == ObjCRuntime.nil) {
+			return;
+		}
+		if (actionTarget == ObjCRuntime.nil) {
+			registerTarget();
+		}
+
+		Runnable[] actions = {cut, copy, paste, selectAll};
+		String[] titles = {"Cut", "Copy", "Paste", "Select All"};
+		for (int i = 0; i < titles.length; i++) {
+			long selector = registerAction("mochaccino" + titles[i].replace(" ", "") + ":", actions[i]);
+			editSelectors.add(selector);
+			long count = send(editMenu, "numberOfItems");
+			for (long j = 0; j < count; j++) {
+				long item = send(editMenu, "itemAtIndex:", j);
+				if (javaString(send(item, "title")).equals(titles[i])) {
+					send(item, "setTarget:", actionTarget);
+					send(item, "setAction:", selector);
+				}
+			}
+		}
+
+		validateCallback = new ValidateCallback(item -> !editSelectors.contains(send(item, "action")) || textFocused.getAsBoolean());
+		ObjCRuntime.class_addMethod(actionTargetClass, ObjCRuntime.sel_registerName("validateMenuItem:"), validateCallback.address(), "c@:@");
+	}
+
+	private static final java.util.Set<Long> editSelectors = new java.util.HashSet<>();
+	private static ValidateCallback validateCallback;
 
 	private static boolean hasKeyEquivalent(long menu, String key) {
 		long count = send(menu, "numberOfItems");
@@ -316,6 +345,48 @@ public final class MacMenuName {
 					send(appMenu, "removeItemAtIndex:", i);
 				}
 				return;
+			}
+		}
+	}
+
+	@FunctionalInterface
+	private interface ValidateCallbackI extends CallbackI {
+		Callback.Descriptor DESCRIPTOR = new Callback.Descriptor(
+			ValidateCallbackI.class,
+			MethodHandles.lookup(),
+			APIUtil.apiCreateCIF(LibFFI.ffi_type_pointer, LibFFI.ffi_type_pointer, LibFFI.ffi_type_pointer, LibFFI.ffi_type_pointer)
+		);
+
+		@Override
+		default Callback.Descriptor getDescriptor() {
+			return DESCRIPTOR;
+		}
+
+		@Override
+		default void callback(long ret, long args) {
+			long self = MemoryUtil.memGetAddress(MemoryUtil.memGetAddress(args));
+			long cmd = MemoryUtil.memGetAddress(MemoryUtil.memGetAddress(args + Long.BYTES));
+			long item = MemoryUtil.memGetAddress(MemoryUtil.memGetAddress(args + 2L * Long.BYTES));
+			MemoryUtil.memPutLong(ret, invoke(self, cmd, item));
+		}
+
+		long invoke(long self, long cmd, long item);
+	}
+
+	private static final class ValidateCallback extends Callback implements ValidateCallbackI {
+		private final java.util.function.LongPredicate validator;
+
+		ValidateCallback(java.util.function.LongPredicate validator) {
+			super(DESCRIPTOR);
+			this.validator = validator;
+		}
+
+		@Override
+		public long invoke(long self, long cmd, long item) {
+			try {
+				return validator.test(item) ? 1L : 0L;
+			} catch (Throwable t) {
+				return 0L;
 			}
 		}
 	}
