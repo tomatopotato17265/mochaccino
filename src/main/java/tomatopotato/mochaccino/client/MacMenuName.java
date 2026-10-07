@@ -293,6 +293,33 @@ public final class MacMenuName {
 		}
 	}
 
+	public static void removeServicesItem() {
+		long app = send(ObjCRuntime.objc_getClass("NSApplication"), "sharedApplication");
+		long mainMenu = send(app, "mainMenu");
+		if (mainMenu == ObjCRuntime.nil) {
+			return;
+		}
+		long appMenu = send(send(mainMenu, "itemAtIndex:", 0L), "submenu");
+		if (appMenu == ObjCRuntime.nil) {
+			return;
+		}
+
+		long servicesMenu = send(app, "servicesMenu");
+		long count = send(appMenu, "numberOfItems");
+		for (long i = 0; i < count; i++) {
+			long item = send(appMenu, "itemAtIndex:", i);
+			long submenu = send(item, "submenu");
+			if (submenu != ObjCRuntime.nil && (submenu == servicesMenu || javaString(send(item, "title")).equals("Services"))) {
+				send(appMenu, "removeItemAtIndex:", i);
+				// the separator that followed it would otherwise sit next to the one before it
+				if (i < count - 1 && (send(send(appMenu, "itemAtIndex:", i), "isSeparatorItem") & 0xFFL) != 0L) {
+					send(appMenu, "removeItemAtIndex:", i);
+				}
+				return;
+			}
+		}
+	}
+
 	// "About java", "Hide java", "Quit java", etc
 	private static void renameItems(long menu, String name) {
 		long count = send(menu, "numberOfItems");

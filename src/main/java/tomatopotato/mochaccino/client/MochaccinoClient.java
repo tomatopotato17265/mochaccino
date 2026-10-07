@@ -38,6 +38,7 @@ public class MochaccinoClient implements ClientModInitializer {
 			if (windowTitle != null && !windowTitle.isEmpty()) {
 				MacMenuName.rename(windowTitle);
 			}
+			MacMenuName.removeServicesItem();
 			IconSettings.apply();
 			MacMenuName.addStandardMenus();
 			MacMenuName.keepRenderingWhileTracking(() -> {
