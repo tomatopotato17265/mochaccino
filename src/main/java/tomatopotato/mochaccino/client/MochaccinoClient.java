@@ -95,6 +95,7 @@ public class MochaccinoClient implements ClientModInitializer {
 					CreateWorldScreen.openFresh(client, () -> client.setScreenAndShow(previous));
 				}
 			}));
+			ModsMenu.install();
 		} catch (Throwable t) {
 			Mochaccino.LOGGER.warn("Could not set up the macOS menu bar", t);
 		}

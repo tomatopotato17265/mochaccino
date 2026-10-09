@@ -261,6 +261,73 @@ public final class MacMenuName {
 		return selector;
 	}
 
+	public static void addSeparator(String menuTitle) {
+		long menu = findMenu(menuTitle);
+		if (menu != ObjCRuntime.nil) {
+			addSeparator(menu);
+		}
+	}
+
+	private static long findMenu(String title) {
+		long mainMenu = send(send(ObjCRuntime.objc_getClass("NSApplication"), "sharedApplication"), "mainMenu");
+		if (mainMenu == ObjCRuntime.nil) {
+			return ObjCRuntime.nil;
+		}
+		long count = send(mainMenu, "numberOfItems");
+		for (long i = 0; i < count; i++) {
+			long item = send(mainMenu, "itemAtIndex:", i);
+			if (javaString(send(item, "title")).equals(title)) {
+				return send(item, "submenu");
+			}
+		}
+		return ObjCRuntime.nil;
+	}
+
+	public static long addFileSubmenu(String title) {
+		if (fileMenu == ObjCRuntime.nil) {
+			return ObjCRuntime.nil;
+		}
+		long item = send(send(ObjCRuntime.objc_getClass("NSMenuItem"), "alloc"), "init");
+		long menu = send(send(ObjCRuntime.objc_getClass("NSMenu"), "alloc"), "initWithTitle:", nsString(title));
+		send(item, "setTitle:", nsString(title));
+		send(item, "setSubmenu:", menu);
+		send(fileMenu, "addItem:", item);
+		return menu;
+	}
+
+	public static long addCheckItem(long menu, String title, boolean checked, Runnable onClick) {
+		long item = addItem(menu, title, "mochaccinoMenuItem:", "");
+		setChecked(item, checked);
+		if (onClick != null) {
+			if (senderCallback == null) {
+				registerSenderAction();
+			}
+			senderHandlers.put(item, onClick);
+			send(item, "setTarget:", actionTarget);
+		}
+		return item;
+	}
+
+	public static void setChecked(long item, boolean checked) {
+		send(item, "setState:", checked ? 1L : 0L);
+	}
+
+	private static final java.util.Map<Long, Runnable> senderHandlers = new java.util.HashMap<>();
+	private static SenderCallback senderCallback;
+
+	private static void registerSenderAction() {
+		if (actionTarget == ObjCRuntime.nil) {
+			registerTarget();
+		}
+		senderCallback = new SenderCallback(sender -> {
+			Runnable handler = senderHandlers.get(sender);
+			if (handler != null) {
+				handler.run();
+			}
+		});
+		ObjCRuntime.class_addMethod(actionTargetClass, ObjCRuntime.sel_registerName("mochaccinoMenuItem:"), senderCallback.address(), "v@:@");
+	}
+
 	private static long addMenu(long mainMenu, String title, long index) {
 		long item = send(send(ObjCRuntime.objc_getClass("NSMenuItem"), "alloc"), "init");
 		long menu = send(send(ObjCRuntime.objc_getClass("NSMenu"), "alloc"), "initWithTitle:", nsString(title));
@@ -346,6 +413,45 @@ public final class MacMenuName {
 				}
 				return;
 			}
+		}
+	}
+
+	@FunctionalInterface
+	private interface SenderCallbackI extends CallbackI {
+		Callback.Descriptor DESCRIPTOR = new Callback.Descriptor(
+			SenderCallbackI.class,
+			MethodHandles.lookup(),
+			APIUtil.apiCreateCIF(LibFFI.ffi_type_void, LibFFI.ffi_type_pointer, LibFFI.ffi_type_pointer, LibFFI.ffi_type_pointer)
+		);
+
+		@Override
+		default Callback.Descriptor getDescriptor() {
+			return DESCRIPTOR;
+		}
+
+		@Override
+		default void callback(long ret, long args) {
+			invoke(
+				MemoryUtil.memGetAddress(MemoryUtil.memGetAddress(args)),
+				MemoryUtil.memGetAddress(MemoryUtil.memGetAddress(args + Long.BYTES)),
+				MemoryUtil.memGetAddress(MemoryUtil.memGetAddress(args + 2L * Long.BYTES))
+			);
+		}
+
+		void invoke(long self, long cmd, long sender);
+	}
+
+	private static final class SenderCallback extends Callback implements SenderCallbackI {
+		private final java.util.function.LongConsumer handler;
+
+		SenderCallback(java.util.function.LongConsumer handler) {
+			super(DESCRIPTOR);
+			this.handler = handler;
+		}
+
+		@Override
+		public void invoke(long self, long cmd, long sender) {
+			handler.accept(sender);
 		}
 	}
 
