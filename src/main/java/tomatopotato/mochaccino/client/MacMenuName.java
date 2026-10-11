@@ -308,6 +308,11 @@ public final class MacMenuName {
 		return item;
 	}
 
+	// brings the game's window to the front
+	public static void activateApp() {
+		send(send(ObjCRuntime.objc_getClass("NSApplication"), "sharedApplication"), "activateIgnoringOtherApps:", 1L);
+	}
+
 	public static void setChecked(long item, boolean checked) {
 		send(item, "setState:", checked ? 1L : 0L);
 	}

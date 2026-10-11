@@ -8,6 +8,8 @@ import net.fabricmc.loader.api.ModContainer;
 import net.fabricmc.loader.api.metadata.ModMetadata;
 import net.fabricmc.loader.api.metadata.ModOrigin;
 
+import net.minecraft.client.Minecraft;
+
 import tomatopotato.mochaccino.Mochaccino;
 
 import java.io.IOException;
@@ -126,5 +128,8 @@ public final class ModsMenu {
 		entry.jar = target;
 		entry.enabled = !entry.enabled;
 		MacMenuName.setChecked(entry.item, entry.enabled);
+
+		// the change only applies on the next launch, so offer to restart
+		RestartNotifier.show(Minecraft.getInstance());
 	}
 }
