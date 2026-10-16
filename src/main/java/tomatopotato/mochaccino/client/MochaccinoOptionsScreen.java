@@ -7,6 +7,7 @@ import net.minecraft.client.Options;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.CycleButton;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.options.OptionsSubScreen;
@@ -36,10 +37,12 @@ public class MochaccinoOptionsScreen extends OptionsSubScreen {
 	private static final int MARGIN = 8;
 	private static final int RESET_WIDTH = 60;
 	private static final int MAX_NAME_WIDTH = 200;
+	private static final int LIQUID_GLASS_WIDTH = 200;
 	private static final int NAME_GAP = 3;
 
 	private IconWidget iconWidget;
 	private Button resetButton;
+	private CycleButton<Boolean> liquidGlassButton;
 	private boolean hasPreview;
 	private String iconName = "Default";
 
@@ -54,6 +57,7 @@ public class MochaccinoOptionsScreen extends OptionsSubScreen {
 	protected void init() {
 		iconWidget = null;
 		resetButton = null;
+		liquidGlassButton = null;
 		super.init();
 
 		iconWidget = addRenderableWidget(new IconWidget());
@@ -61,6 +65,10 @@ public class MochaccinoOptionsScreen extends OptionsSubScreen {
 			IconSettings.reset();
 			refresh();
 		}).width(RESET_WIDTH).build());
+
+		liquidGlassButton = addRenderableWidget(CycleButton.onOffBuilder(IconSettings.useLiquidGlass())
+			.create(0, 0, LIQUID_GLASS_WIDTH, 20, Component.literal("Use Liquid Glass icon"),
+				(button, value) -> IconSettings.setUseLiquidGlass(value)));
 
 		iconWidget.active = Mochaccino.isMacOS();
 		placeWidgets();
@@ -73,6 +81,9 @@ public class MochaccinoOptionsScreen extends OptionsSubScreen {
 			return true;
 		}
 		if (resetButton != null && resetButton.mouseClicked(event, doubleClick)) {
+			return true;
+		}
+		if (liquidGlassButton != null && liquidGlassButton.mouseClicked(event, doubleClick)) {
 			return true;
 		}
 		return super.mouseClicked(event, doubleClick);
@@ -97,13 +108,15 @@ public class MochaccinoOptionsScreen extends OptionsSubScreen {
 	}
 
 	private void placeWidgets() {
-		if (iconWidget == null || resetButton == null) {
+		if (iconWidget == null || resetButton == null || liquidGlassButton == null) {
 			return;
 		}
 		iconWidget.setX(rowLeft());
 		iconWidget.setY(rowTop());
 		resetButton.setX(rowLeft() + PREVIEW_SIZE + MARGIN);
 		resetButton.setY(rowTop() + font.lineHeight + NAME_GAP);
+		liquidGlassButton.setX((width - LIQUID_GLASS_WIDTH) / 2);
+		liquidGlassButton.setY(rowTop() + PREVIEW_SIZE + MARGIN * 2);
 	}
 
 	private void refresh() {

@@ -14,6 +14,7 @@ import java.util.Properties;
 // the user's chosen Dock icon, saved in config/mochaccino.properties
 public final class IconSettings {
 	private static final String KEY = "icon";
+	private static final String LIQUID_GLASS_KEY = "liquidGlass";
 
 	private IconSettings() {
 	}
@@ -22,15 +23,36 @@ public final class IconSettings {
 		return FabricLoader.getInstance().getConfigDir().resolve("mochaccino.properties");
 	}
 
-	// the saved custom icon, or null if the user hasn't picked one (or it no longer exists)
-	public static Path customIcon() {
+	private static Properties load() {
 		Properties properties = new Properties();
 		try (Reader reader = Files.newBufferedReader(configFile())) {
 			properties.load(reader);
 		} catch (IOException e) {
-			return null;
 		}
-		String value = properties.getProperty(KEY, "");
+		return properties;
+	}
+
+	private static void store(Properties properties) {
+		try (Writer writer = Files.newBufferedWriter(configFile())) {
+			properties.store(writer, "Mochaccino");
+		} catch (IOException e) {
+			Mochaccino.LOGGER.warn("Could not save the settings", e);
+		}
+	}
+
+	public static boolean useLiquidGlass() {
+		return Boolean.parseBoolean(load().getProperty(LIQUID_GLASS_KEY, "false"));
+	}
+
+	public static void setUseLiquidGlass(boolean value) {
+		Properties properties = load();
+		properties.setProperty(LIQUID_GLASS_KEY, String.valueOf(value));
+		store(properties);
+	}
+
+	// the saved custom icon, or null if the user hasn't picked one (or it no longer exists)
+	public static Path customIcon() {
+		String value = load().getProperty(KEY, "");
 		if (value.isEmpty()) {
 			return null;
 		}
@@ -40,13 +62,9 @@ public final class IconSettings {
 
 	// pass null to clear the saved icon
 	public static void saveCustomIcon(Path path) {
-		Properties properties = new Properties();
+		Properties properties = load();
 		properties.setProperty(KEY, path == null ? "" : path.toAbsolutePath().toString());
-		try (Writer writer = Files.newBufferedWriter(configFile())) {
-			properties.store(writer, "Mochaccino");
-		} catch (IOException e) {
-			Mochaccino.LOGGER.warn("Could not save the icon setting", e);
-		}
+		store(properties);
 	}
 
 	public static void apply() {
