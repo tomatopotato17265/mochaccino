@@ -1,15 +1,15 @@
 import AppKit
 import UserNotifications
 
-var title = "", body = "", button = "Restart"
+var title = "", body = ""
 var parentPid: Int32 = 0
+let notificationId = UUID().uuidString
 
 var arguments = CommandLine.arguments.dropFirst().makeIterator()
 while let flag = arguments.next() {
 	switch flag {
 	case "--title": title = arguments.next() ?? title
 	case "--body": body = arguments.next() ?? body
-	case "--button": button = arguments.next() ?? button
 	case "--pid": parentPid = Int32(arguments.next() ?? "") ?? 0
 	default: break
 	}
@@ -20,10 +20,8 @@ final class Delegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterD
 		let center = UNUserNotificationCenter.current()
 		center.delegate = self
 
-		// no .foreground option: pressing the button must not bring this helper to the front
-		let restart = UNNotificationAction(identifier: "restart", title: button, options: [])
-		let category = UNNotificationCategory(identifier: "restart", actions: [restart], intentIdentifiers: [], options: [])
-		center.setNotificationCategories([category])
+		center.removeAllDeliveredNotifications()
+		center.removeAllPendingNotificationRequests()
 
 		center.requestAuthorization(options: [.alert]) { granted, _ in
 			guard granted else { exit(2) }
@@ -31,9 +29,7 @@ final class Delegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterD
 			let content = UNMutableNotificationContent()
 			content.title = title
 			content.body = body
-			content.categoryIdentifier = "restart"
-			// a fixed identifier, so posting again replaces the earlier notification
-			let request = UNNotificationRequest(identifier: "mochaccino-restart", content: content, trigger: nil)
+			let request = UNNotificationRequest(identifier: notificationId, content: content, trigger: nil)
 			center.add(request) { error in
 				if error != nil { exit(3) }
 			}
@@ -41,7 +37,7 @@ final class Delegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterD
 
 		if parentPid > 0 {
 			Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { _ in
-				if kill(parentPid, 0) != 0 { exit(0) }
+				if kill(parentPid, 0) != 0 { removeAndExit() }
 			}
 		}
 	}
@@ -53,19 +49,21 @@ final class Delegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterD
 
 	func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
 		withCompletionHandler completionHandler: @escaping () -> Void) {
-		switch response.actionIdentifier {
-		case "restart":
-			print("restart")
-		case UNNotificationDefaultActionIdentifier:
-			print("focus")
-		default:
+		// clicking the notification only brings the game forward. dismissing it does nothing
+		guard response.actionIdentifier == UNNotificationDefaultActionIdentifier else {
 			completionHandler()
 			return
 		}
+		print("focus")
 		fflush(stdout)
 		completionHandler()
-		exit(0)
+		removeAndExit()
 	}
+}
+
+func removeAndExit() {
+	UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: [notificationId])
+	DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { exit(0) }
 }
 
 let app = NSApplication.shared

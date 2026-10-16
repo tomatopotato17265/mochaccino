@@ -11,7 +11,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 
-// shows the "restart to apply changes" notification: pressing its button restarts, clicking it only focuses the game
+// shows the "restart to apply changes" notification; clicking it brings the game to the front
 public final class RestartNotifier {
 	private static Process helper;
 
@@ -39,15 +39,11 @@ public final class RestartNotifier {
 				executable.toString(),
 				"--pid", String.valueOf(ProcessHandle.current().pid()),
 				"--title", "Restart to apply changes",
-				"--body", "Mod changes take effect the next time the game starts.",
-				"--button", "Restart"
+				"--body", "Mod changes take effect the next time the game starts."
 			).start();
 
 			try (BufferedReader out = new BufferedReader(new InputStreamReader(helper.getInputStream(), StandardCharsets.UTF_8))) {
-				String line = out.readLine();
-				if ("restart".equals(line)) {
-					client.execute(() -> Restarter.restart(client));
-				} else if ("focus".equals(line)) {
+				if ("focus".equals(out.readLine())) {
 					client.execute(MacMenuName::activateApp);
 				}
 			}
