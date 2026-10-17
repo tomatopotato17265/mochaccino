@@ -69,13 +69,29 @@ public final class MacMenuName {
 
 	// puts back the icon the game had before setIcon replaced it
 	public static void restoreIcon() {
+		if (originalIconPng == null) {
+			return;
+		}
 		long icon = originalIconPng == null ? ObjCRuntime.nil : imageFromBytes(originalIconPng);
 		send(send(ObjCRuntime.objc_getClass("NSApplication"), "sharedApplication"), "setApplicationIconImage:", icon);
 	}
 
 	public static byte[] currentIconPng() {
 		long app = send(ObjCRuntime.objc_getClass("NSApplication"), "sharedApplication");
-		long tiff = send(send(app, "applicationIconImage"), "TIFFRepresentation");
+		return pngFromImage(send(app, "applicationIconImage"));
+	}
+
+	public static byte[] defaultIconPng() {
+		return originalIconPng != null ? originalIconPng : currentIconPng();
+	}
+
+	public static byte[] toPng(byte[] image) {
+		long nsImage = imageFromBytes(image);
+		return nsImage == ObjCRuntime.nil ? null : pngFromImage(nsImage);
+	}
+
+	private static byte[] pngFromImage(long image) {
+		long tiff = send(image, "TIFFRepresentation");
 		if (tiff == ObjCRuntime.nil) {
 			return null;
 		}

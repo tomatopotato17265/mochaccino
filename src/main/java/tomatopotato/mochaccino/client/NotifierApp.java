@@ -94,7 +94,7 @@ public final class NotifierApp {
 	}
 
 	// .png -> .iconset (every size macOS wants) -> .icns
-	private static void makeIcns(byte[] png, Path icns) throws IOException, InterruptedException {
+	static void makeIcns(byte[] png, Path icns) throws IOException, InterruptedException {
 		Path work = Files.createTempDirectory("mochaccino-icon");
 		try {
 			Path source = work.resolve("source.png");

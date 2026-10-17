@@ -2,6 +2,8 @@ package tomatopotato.mochaccino.client;
 
 import net.fabricmc.loader.api.FabricLoader;
 
+import net.minecraft.client.Minecraft;
+
 import tomatopotato.mochaccino.Mochaccino;
 
 import java.io.IOException;
@@ -68,35 +70,87 @@ public final class IconSettings {
 	}
 
 	public static void apply() {
-		Path custom = customIcon();
-		if (custom == null) {
-			return;
-		}
-		try {
-			if (!MacMenuName.setIcon(Files.readAllBytes(custom))) {
-				Mochaccino.LOGGER.warn("{} is not a readable image, leaving the default icon", custom);
-			}
-		} catch (IOException e) {
-			Mochaccino.LOGGER.warn("Could not read {}, leaving the default icon", custom, e);
+		if (customIcon() != null || useLiquidGlass()) {
+			applyNow(null);
 		}
 	}
 
-	// applies the given image if it's a valid one and remembers it
-	public static boolean applyAndSave(Path path) {
+	private static int applyGeneration;
+
+	public static void applyNow(Runnable onDone) {
+		int generation = ++applyGeneration;
+		Path custom = customIcon();
+		byte[] source = null;
+		if (custom != null) {
+			try {
+				source = Files.readAllBytes(custom);
+			} catch (IOException e) {
+				Mochaccino.LOGGER.warn("Could not read {}, using the default icon", custom, e);
+			}
+		}
+
+		if (!useLiquidGlass()) {
+			if (source == null || !MacMenuName.setIcon(source)) {
+				MacMenuName.restoreIcon();
+			}
+			if (onDone != null) {
+				onDone.run();
+			}
+			return;
+		}
+
+		byte[] png = MacMenuName.toPng(source != null ? source : MacMenuName.defaultIconPng());
+		if (png == null) {
+			Mochaccino.LOGGER.warn("The icon is not a readable image, leaving it as it is");
+			if (onDone != null) {
+				onDone.run();
+			}
+			return;
+		}
+
+		Minecraft client = Minecraft.getInstance();
+		Thread thread = new Thread(() -> {
+			byte[] rounded;
+			try {
+				rounded = RoundedIcon.toIcns(RoundedIcon.compose(png));
+			} catch (Exception e) {
+				Mochaccino.LOGGER.warn("Could not make the rounded icon. Using the image as it is", e);
+				rounded = null;
+			}
+			byte[] icon = rounded;
+			client.execute(() -> {
+				// a newer choice was made while this one was being drawn
+				if (generation != applyGeneration) {
+					return;
+				}
+				if (icon == null || !MacMenuName.setIcon(icon)) {
+					MacMenuName.setIcon(png);
+				}
+				if (onDone != null) {
+					onDone.run();
+				}
+			});
+		}, "mochaccino-rounded-icon");
+		thread.setDaemon(true);
+		thread.start();
+	}
+
+	public static boolean applyAndSave(Path path, Runnable onDone) {
 		try {
-			if (MacMenuName.setIcon(Files.readAllBytes(path))) {
-				saveCustomIcon(path);
-				return true;
+			if (MacMenuName.toPng(Files.readAllBytes(path)) == null) {
+				return false;
 			}
 		} catch (IOException e) {
 			Mochaccino.LOGGER.warn("Could not read {}", path, e);
+			return false;
 		}
-		return false;
+		saveCustomIcon(path);
+		applyNow(onDone);
+		return true;
 	}
 
-	// reset icon
-	public static void reset() {
+	public static void reset(Runnable onDone) {
 		saveCustomIcon(null);
-		MacMenuName.restoreIcon();
+		applyNow(onDone);
 	}
 }

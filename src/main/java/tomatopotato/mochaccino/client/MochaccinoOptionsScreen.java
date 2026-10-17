@@ -62,13 +62,16 @@ public class MochaccinoOptionsScreen extends OptionsSubScreen {
 
 		iconWidget = addRenderableWidget(new IconWidget());
 		resetButton = addRenderableWidget(Button.builder(Component.literal("Reset"), button -> {
-			IconSettings.reset();
+			IconSettings.reset(this::refresh);
 			refresh();
 		}).width(RESET_WIDTH).build());
 
 		liquidGlassButton = addRenderableWidget(CycleButton.onOffBuilder(IconSettings.useLiquidGlass())
 			.create(0, 0, LIQUID_GLASS_WIDTH, 20, Component.literal("Use Liquid Glass icon"),
-				(button, value) -> IconSettings.setUseLiquidGlass(value)));
+				(button, value) -> {
+					IconSettings.setUseLiquidGlass(value);
+					IconSettings.applyNow(this::refresh);
+				}));
 
 		iconWidget.active = Mochaccino.isMacOS();
 		placeWidgets();
@@ -220,7 +223,7 @@ public class MochaccinoOptionsScreen extends OptionsSubScreen {
 
 			client.execute(() -> {
 				try {
-					if (chosen != null && IconSettings.applyAndSave(Path.of(chosen))) {
+					if (chosen != null && IconSettings.applyAndSave(Path.of(chosen), this::refresh)) {
 						refresh();
 					} else if (chosen != null) {
 						Mochaccino.LOGGER.warn("{} is not an image macOS can read", chosen);
