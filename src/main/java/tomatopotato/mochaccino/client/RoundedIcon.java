@@ -27,7 +27,7 @@ public final class RoundedIcon {
 	private RoundedIcon() {
 	}
 
-	public static byte[] compose(byte[] png) throws IOException {
+	public static byte[] compose(byte[] png, int background) throws IOException {
 		BufferedImage image = ImageIO.read(new ByteArrayInputStream(png));
 		if (image == null) {
 			throw new IOException("Not a readable image");
@@ -43,7 +43,7 @@ public final class RoundedIcon {
 		Shape tile = new RoundRectangle2D.Double(margin, margin, TILE, TILE, CORNER * 2, CORNER * 2);
 
 		g.drawImage(shadow(), 0, 0, null);
-		g.setColor(Color.WHITE);
+		g.setColor(new Color(background));
 		g.fill(tile);
 
 		double scale = Math.min(TILE * CONTENT / image.getWidth(), TILE * CONTENT / image.getHeight());

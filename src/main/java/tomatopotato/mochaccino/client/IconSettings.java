@@ -17,6 +17,8 @@ import java.util.Properties;
 public final class IconSettings {
 	private static final String KEY = "icon";
 	private static final String LIQUID_GLASS_KEY = "liquidGlass";
+	private static final String BACKGROUND_KEY = "background";
+	public static final int DEFAULT_BACKGROUND = 0xFFFFFF;
 
 	private IconSettings() {
 	}
@@ -49,6 +51,20 @@ public final class IconSettings {
 	public static void setUseLiquidGlass(boolean value) {
 		Properties properties = load();
 		properties.setProperty(LIQUID_GLASS_KEY, String.valueOf(value));
+		store(properties);
+	}
+
+	public static int backgroundColor() {
+		try {
+			return Integer.parseInt(load().getProperty(BACKGROUND_KEY, ""), 16) & 0xFFFFFF;
+		} catch (NumberFormatException e) {
+			return DEFAULT_BACKGROUND;
+		}
+	}
+
+	public static void setBackgroundColor(int rgb) {
+		Properties properties = load();
+		properties.setProperty(BACKGROUND_KEY, String.format("%06X", rgb & 0xFFFFFF));
 		store(properties);
 	}
 
@@ -109,10 +125,11 @@ public final class IconSettings {
 		}
 
 		Minecraft client = Minecraft.getInstance();
+		int background = backgroundColor();
 		Thread thread = new Thread(() -> {
 			byte[] rounded;
 			try {
-				rounded = RoundedIcon.toIcns(RoundedIcon.compose(png));
+				rounded = RoundedIcon.toIcns(RoundedIcon.compose(png, background));
 			} catch (Exception e) {
 				Mochaccino.LOGGER.warn("Could not make the rounded icon. Using the image as it is", e);
 				rounded = null;
