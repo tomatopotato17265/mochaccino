@@ -6,6 +6,7 @@ import com.mojang.blaze3d.platform.cursor.CursorTypes;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Options;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.AbstractSliderButton;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.ContainerObjectSelectionList;
@@ -17,6 +18,7 @@ import net.minecraft.client.gui.narration.NarratableEntry;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.options.OptionsSubScreen;
+import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.renderer.texture.DynamicTexture;
@@ -76,6 +78,7 @@ public class MochaccinoOptionsScreen extends OptionsSubScreen {
 	private Button folderButton;
 	private EditBox pathBox;
 	private PresetRow presetRow;
+	private ScaleSlider scaleSlider;
 	private ContentList contentList;
 
 	private int backgroundColor;
@@ -107,7 +110,7 @@ public class MochaccinoOptionsScreen extends OptionsSubScreen {
 
 	private int contentHeight() {
 		return MARGIN + PREVIEW_SIZE + NAME_GAP + 20 + MARGIN + PATH_ROW_HEIGHT + MARGIN + 20 + MARGIN + 20 + MARGIN
-			+ PRESET_SIZE + 4 + font.lineHeight + MARGIN;
+			+ PRESET_SIZE + 4 + font.lineHeight + MARGIN + 20 + MARGIN;
 	}
 
 	private class ContentList extends ContainerObjectSelectionList<ContentEntry> {
@@ -154,6 +157,7 @@ public class MochaccinoOptionsScreen extends OptionsSubScreen {
 						IconSettings.setUseLiquidGlass(value);
 						colorBox.setEditable(value);
 						presetRow.active = value;
+						scaleSlider.active = value;
 						IconSettings.applyNow(MochaccinoOptionsScreen.this::refresh);
 					});
 
@@ -168,7 +172,10 @@ public class MochaccinoOptionsScreen extends OptionsSubScreen {
 			presetRow = new PresetRow();
 			presetRow.active = IconSettings.useLiquidGlass();
 
-			widgets.addAll(List.of(resetButton, folderButton, pathBox, liquidGlassButton, colorBox, presetRow));
+			scaleSlider = new ScaleSlider();
+			scaleSlider.active = IconSettings.useLiquidGlass();
+
+			widgets.addAll(List.of(resetButton, folderButton, pathBox, liquidGlassButton, colorBox, presetRow, scaleSlider));
 		}
 
 		@Override
@@ -207,6 +214,8 @@ public class MochaccinoOptionsScreen extends OptionsSubScreen {
 			colorBox.setY(colorY);
 			presetRow.setX(centerX - presetRow.getWidth() / 2);
 			presetRow.setY(colorY + 20 + MARGIN);
+			scaleSlider.setX(centerX - LIQUID_GLASS_WIDTH / 2);
+			scaleSlider.setY(presetRow.getY() + PRESET_SIZE + 4 + font.lineHeight + MARGIN);
 
 			iconWidget.extractRenderState(graphics, mouseX, mouseY, partialTick);
 			for (AbstractWidget widget : widgets) {
@@ -334,6 +343,46 @@ public class MochaccinoOptionsScreen extends OptionsSubScreen {
 		@Override
 		protected void updateWidgetNarration(NarrationElementOutput output) {
 			defaultButtonNarrationText(output);
+		}
+	}
+
+	private class ScaleSlider extends AbstractSliderButton {
+		ScaleSlider() {
+			super(0, 0, LIQUID_GLASS_WIDTH, 20, Component.empty(),
+				(IconSettings.iconScale() - IconSettings.MIN_SCALE) / (IconSettings.MAX_SCALE - IconSettings.MIN_SCALE));
+			updateMessage();
+		}
+
+		private double scale() {
+			double scale = IconSettings.MIN_SCALE + value * (IconSettings.MAX_SCALE - IconSettings.MIN_SCALE);
+			return Math.round(scale * 100) / 100.0;
+		}
+
+		@Override
+		protected void updateMessage() {
+			setMessage(Component.literal("Icon scale: " + Math.round(scale() * 100) + "%"));
+		}
+
+		@Override
+		protected void applyValue() {
+			IconSettings.setIconScale(scale());
+		}
+
+		// making the icon takes a moment, so it is redone once the slider is let go instead of on every step
+		@Override
+		public void onRelease(MouseButtonEvent event) {
+			super.onRelease(event);
+			IconSettings.applyNow(MochaccinoOptionsScreen.this::refresh);
+		}
+
+		@Override
+		public boolean keyPressed(KeyEvent event) {
+			double before = value;
+			boolean handled = super.keyPressed(event);
+			if (value != before) {
+				IconSettings.applyNow(MochaccinoOptionsScreen.this::refresh);
+			}
+			return handled;
 		}
 	}
 

@@ -18,7 +18,11 @@ public final class IconSettings {
 	private static final String KEY = "icon";
 	private static final String LIQUID_GLASS_KEY = "liquidGlass";
 	private static final String BACKGROUND_KEY = "background";
+	private static final String SCALE_KEY = "iconScale";
 	public static final int DEFAULT_BACKGROUND = 0xFFFFFF;
+	public static final double MIN_SCALE = 0.2;
+	public static final double MAX_SCALE = 1.0;
+	public static final double DEFAULT_SCALE = 0.8;
 
 	private IconSettings() {
 	}
@@ -65,6 +69,21 @@ public final class IconSettings {
 	public static void setBackgroundColor(int rgb) {
 		Properties properties = load();
 		properties.setProperty(BACKGROUND_KEY, String.format("%06X", rgb & 0xFFFFFF));
+		store(properties);
+	}
+
+	public static double iconScale() {
+		try {
+			double scale = Double.parseDouble(load().getProperty(SCALE_KEY, ""));
+			return Math.clamp(scale, MIN_SCALE, MAX_SCALE);
+		} catch (NumberFormatException e) {
+			return DEFAULT_SCALE;
+		}
+	}
+
+	public static void setIconScale(double scale) {
+		Properties properties = load();
+		properties.setProperty(SCALE_KEY, String.valueOf(scale));
 		store(properties);
 	}
 
@@ -126,10 +145,11 @@ public final class IconSettings {
 
 		Minecraft client = Minecraft.getInstance();
 		int background = backgroundColor();
+		double scale = iconScale();
 		Thread thread = new Thread(() -> {
 			byte[] rounded;
 			try {
-				rounded = RoundedIcon.toIcns(RoundedIcon.compose(png, background));
+				rounded = RoundedIcon.toIcns(RoundedIcon.compose(png, background, scale));
 			} catch (Exception e) {
 				Mochaccino.LOGGER.warn("Could not make the rounded icon. Using the image as it is", e);
 				rounded = null;

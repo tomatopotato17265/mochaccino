@@ -21,13 +21,11 @@ public final class RoundedIcon {
 	private static final int CANVAS = 1024;
 	private static final int TILE = 824;
 	private static final int CORNER = 185;
-	// how much of the rounded square the image may cover
-	private static final double CONTENT = 0.8;
 
 	private RoundedIcon() {
 	}
 
-	public static byte[] compose(byte[] png, int background) throws IOException {
+	public static byte[] compose(byte[] png, int background, double content) throws IOException {
 		BufferedImage image = ImageIO.read(new ByteArrayInputStream(png));
 		if (image == null) {
 			throw new IOException("Not a readable image");
@@ -46,7 +44,7 @@ public final class RoundedIcon {
 		g.setColor(new Color(background));
 		g.fill(tile);
 
-		double scale = Math.min(TILE * CONTENT / image.getWidth(), TILE * CONTENT / image.getHeight());
+		double scale = Math.min(TILE * content / image.getWidth(), TILE * content / image.getHeight());
 		int width = (int) Math.round(image.getWidth() * scale);
 		int height = (int) Math.round(image.getHeight() * scale);
 		g.setClip(tile);
