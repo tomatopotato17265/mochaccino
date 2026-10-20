@@ -1,14 +1,19 @@
 package tomatopotato.mochaccino.client;
 
 import com.mojang.blaze3d.platform.NativeImage;
+import com.mojang.blaze3d.platform.cursor.CursorTypes;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Options;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.ContainerObjectSelectionList;
 import net.minecraft.client.gui.components.CycleButton;
 import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.OptionsList;
+import net.minecraft.client.gui.components.events.GuiEventListener;
+import net.minecraft.client.gui.narration.NarratableEntry;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.options.OptionsSubScreen;
@@ -28,19 +33,21 @@ import tomatopotato.mochaccino.Mochaccino;
 
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 
 public class MochaccinoOptionsScreen extends OptionsSubScreen {
 	private static final Component TITLE = Component.literal("Mochaccino");
 
 	private static final Identifier PREVIEW_ID = Mochaccino.id("icon_preview");
-	private static final int PREVIEW_SIZE = 32;
+	private static final int PREVIEW_SIZE = 48;
 	private static final int TEXTURE_SIZE = 256;
 	private static final int MARGIN = 8;
-	private static final int RESET_WIDTH = 60;
-	private static final int MAX_NAME_WIDTH = 200;
 	private static final int LIQUID_GLASS_WIDTH = 200;
-	private static final int NAME_GAP = 3;
+	private static final int NAME_GAP = 4;
 	private static final int SWATCH_SIZE = 20;
+	private static final int PATH_ROW_HEIGHT = 20;
+	private static final int PATH_GAP = 4;
 	private static final int COLOR_FIELD_WIDTH = 70;
 	private static final int PRESET_SIZE = 16;
 	private static final int PRESET_GAP = 4;
@@ -60,17 +67,19 @@ public class MochaccinoOptionsScreen extends OptionsSubScreen {
 
 	private record Preset(String name, int rgb) {
 	}
-	private static final Component BACKGROUND_LABEL = Component.literal("Background");
+	private static final Component BACKGROUND_LABEL = Component.literal("Color");
 
 	private IconWidget iconWidget;
 	private Button resetButton;
 	private CycleButton<Boolean> liquidGlassButton;
 	private EditBox colorBox;
+	private Button folderButton;
+	private EditBox pathBox;
 	private PresetRow presetRow;
+	private ContentList contentList;
 
 	private int backgroundColor;
 	private boolean hasPreview;
-	private String iconName = "Default";
 
 	public MochaccinoOptionsScreen(Screen lastScreen, Options options) {
 		super(lastScreen, options, TITLE);
@@ -80,112 +89,146 @@ public class MochaccinoOptionsScreen extends OptionsSubScreen {
 	protected void addOptions() {}
 
 	@Override
-	protected void init() {
-		iconWidget = null;
-		resetButton = null;
-		liquidGlassButton = null;
-		colorBox = null;
-		presetRow = null;
-		super.init();
+	protected void addContents() {
+		list = new OptionsList(minecraft, width, this);
 
-		iconWidget = addRenderableWidget(new IconWidget());
-		resetButton = addRenderableWidget(Button.builder(Component.literal("Reset"), button -> {
-			IconSettings.reset(this::refresh);
-			refresh();
-		}).width(RESET_WIDTH).build());
-
-		liquidGlassButton = addRenderableWidget(CycleButton.onOffBuilder(IconSettings.useLiquidGlass())
-			.create(0, 0, LIQUID_GLASS_WIDTH, 20, Component.literal("Use Liquid Glass icon"),
-				(button, value) -> {
-					IconSettings.setUseLiquidGlass(value);
-					colorBox.setEditable(value);
-					presetRow.active = value;
-					IconSettings.applyNow(this::refresh);
-				}));
-
-		backgroundColor = IconSettings.backgroundColor();
-		colorBox = addRenderableWidget(new EditBox(font, 0, 0, COLOR_FIELD_WIDTH, 20, Component.literal("Background color")));
-		colorBox.setMaxLength(7);
-		colorBox.setHint(Component.literal("#RRGGBB"));
-		colorBox.setValue(String.format("#%06X", backgroundColor));
-		colorBox.setEditable(IconSettings.useLiquidGlass());
-		colorBox.setResponder(this::colorTyped);
-
-		presetRow = addRenderableWidget(new PresetRow());
-		presetRow.active = IconSettings.useLiquidGlass();
-
-		iconWidget.active = Mochaccino.isMacOS();
-		placeWidgets();
+		contentList = layout.addToContents(new ContentList(minecraft, width, layout.getContentHeight(), layout.getHeaderHeight()));
+		contentList.add(new ContentEntry(), contentHeight());
 		refresh();
-	}
-
-	@Override
-	public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
-		if (presetRow != null && presetRow.mouseClicked(event, doubleClick)) {
-			return true;
-		}
-		if (colorBox != null) {
-			if (colorBox.mouseClicked(event, doubleClick)) {
-				setFocused(colorBox);
-				return true;
-			}
-			colorBox.setFocused(false);
-		}
-		if (iconWidget != null && iconWidget.mouseClicked(event, doubleClick)) {
-			return true;
-		}
-		if (resetButton != null && resetButton.mouseClicked(event, doubleClick)) {
-			return true;
-		}
-		if (liquidGlassButton != null && liquidGlassButton.mouseClicked(event, doubleClick)) {
-			return true;
-		}
-		return super.mouseClicked(event, doubleClick);
 	}
 
 	@Override
 	protected void repositionElements() {
 		super.repositionElements();
-		placeWidgets();
-	}
-
-	private int textWidth() {
-		return Math.max(font.width(fit(iconName, MAX_NAME_WIDTH)), RESET_WIDTH);
-	}
-
-	private int rowLeft() {
-		return (width - (PREVIEW_SIZE + MARGIN + textWidth())) / 2;
-	}
-
-	private int rowTop() {
-		return layout.getHeaderHeight() + MARGIN;
-	}
-
-	private void placeWidgets() {
-		if (iconWidget == null || resetButton == null || liquidGlassButton == null || colorBox == null || presetRow == null) {
-			return;
+		if (contentList != null) {
+			contentList.updateSize(width, layout);
 		}
-		iconWidget.setX(rowLeft());
-		iconWidget.setY(rowTop());
-		resetButton.setX(rowLeft() + PREVIEW_SIZE + MARGIN);
-		resetButton.setY(rowTop() + font.lineHeight + NAME_GAP);
-		liquidGlassButton.setX((width - LIQUID_GLASS_WIDTH) / 2);
-		liquidGlassButton.setY(rowTop() + PREVIEW_SIZE + MARGIN * 2);
+	}
 
-		int rowWidth = font.width(BACKGROUND_LABEL) + MARGIN + SWATCH_SIZE + MARGIN + COLOR_FIELD_WIDTH;
-		int colorY = liquidGlassButton.getY() + 20 + MARGIN;
-		colorBox.setX((width - rowWidth) / 2 + font.width(BACKGROUND_LABEL) + MARGIN + SWATCH_SIZE + MARGIN);
-		colorBox.setY(colorY);
-		presetRow.setX((width - presetRow.getWidth()) / 2);
-		presetRow.setY(colorY + 20 + MARGIN);
+	private int contentHeight() {
+		return MARGIN + PREVIEW_SIZE + NAME_GAP + 20 + MARGIN + PATH_ROW_HEIGHT + MARGIN + 20 + MARGIN + 20 + MARGIN
+			+ PRESET_SIZE + 4 + font.lineHeight + MARGIN;
+	}
+
+	private class ContentList extends ContainerObjectSelectionList<ContentEntry> {
+		ContentList(Minecraft minecraft, int width, int height, int y) {
+			super(minecraft, width, height, y, 20);
+			// start at the top even when everything fits
+			centerListVertically = false;
+		}
+
+		void add(ContentEntry entry, int height) {
+			addEntry(entry, height);
+		}
+	}
+
+	// the whole page as one tall entry. the list takes care of scrolling it, clipping it and the scrollbar
+	private class ContentEntry extends ContainerObjectSelectionList.Entry<ContentEntry> {
+		private final List<AbstractWidget> widgets = new ArrayList<>();
+
+		ContentEntry() {
+			iconWidget = new IconWidget();
+			resetButton = Button.builder(Component.literal("Reset"), button -> IconSettings.reset(MochaccinoOptionsScreen.this::refresh))
+				.width(PREVIEW_SIZE).build();
+
+			folderButton = Button.builder(Component.empty(), button -> chooseIcon()).size(PATH_ROW_HEIGHT, PATH_ROW_HEIGHT).build();
+			folderButton.active = Mochaccino.isMacOS();
+			pathBox = new EditBox(font, 0, 0, LIQUID_GLASS_WIDTH - PATH_ROW_HEIGHT - PATH_GAP, PATH_ROW_HEIGHT, Component.literal("Icon path")) {
+
+				@Override
+				public void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
+					super.extractWidgetRenderState(graphics, mouseX, mouseY, partialTick);
+					if (isHovered()) {
+						graphics.requestCursor(CursorTypes.IBEAM);
+					}
+				}
+			};
+			pathBox.setMaxLength(4096);
+			pathBox.setHint(Component.literal("Default"));
+			pathBox.setEditable(false);
+			pathBox.setTextColorUneditable(0xFFFFFFFF);
+
+			liquidGlassButton = CycleButton.onOffBuilder(IconSettings.useLiquidGlass())
+				.create(0, 0, LIQUID_GLASS_WIDTH, 20, Component.literal("Icon background"),
+					(button, value) -> {
+						IconSettings.setUseLiquidGlass(value);
+						colorBox.setEditable(value);
+						presetRow.active = value;
+						IconSettings.applyNow(MochaccinoOptionsScreen.this::refresh);
+					});
+
+			backgroundColor = IconSettings.backgroundColor();
+			colorBox = new EditBox(font, 0, 0, COLOR_FIELD_WIDTH, 20, Component.literal("Background color"));
+			colorBox.setMaxLength(7);
+			colorBox.setHint(Component.literal("#RRGGBB"));
+			colorBox.setValue(String.format("#%06X", backgroundColor));
+			colorBox.setEditable(IconSettings.useLiquidGlass());
+			colorBox.setResponder(MochaccinoOptionsScreen.this::colorTyped);
+
+			presetRow = new PresetRow();
+			presetRow.active = IconSettings.useLiquidGlass();
+
+			widgets.addAll(List.of(resetButton, folderButton, pathBox, liquidGlassButton, colorBox, presetRow));
+		}
+
+		@Override
+		public List<? extends GuiEventListener> children() {
+			return widgets;
+		}
+
+		@Override
+		public List<? extends NarratableEntry> narratables() {
+			return widgets;
+		}
+
+		@Override
+		public void extractContent(GuiGraphicsExtractor graphics, int mouseX, int mouseY, boolean hovered, float partialTick) {
+			int centerX = getContentXMiddle();
+			int top = getContentY() + MARGIN;
+
+			iconWidget.setX(centerX - PREVIEW_SIZE / 2);
+			iconWidget.setY(top);
+			resetButton.setX(iconWidget.getX());
+			resetButton.setY(top + PREVIEW_SIZE + NAME_GAP);
+
+			int pathY = resetButton.getY() + 20 + MARGIN;
+			folderButton.setX(centerX - LIQUID_GLASS_WIDTH / 2);
+			folderButton.setY(pathY);
+			pathBox.setX(folderButton.getX() + PATH_ROW_HEIGHT + PATH_GAP);
+			pathBox.setY(pathY);
+			liquidGlassButton.setX(centerX - LIQUID_GLASS_WIDTH / 2);
+			liquidGlassButton.setY(pathY + PATH_ROW_HEIGHT + MARGIN);
+
+			int labelWidth = font.width(BACKGROUND_LABEL);
+			int colorRowX = centerX - (labelWidth + MARGIN + SWATCH_SIZE + MARGIN + COLOR_FIELD_WIDTH) / 2;
+			int colorY = liquidGlassButton.getY() + 20 + MARGIN;
+			int swatchX = colorRowX + labelWidth + MARGIN;
+			colorBox.setX(swatchX + SWATCH_SIZE + MARGIN);
+			colorBox.setY(colorY);
+			presetRow.setX(centerX - presetRow.getWidth() / 2);
+			presetRow.setY(colorY + 20 + MARGIN);
+
+			iconWidget.extractRenderState(graphics, mouseX, mouseY, partialTick);
+			for (AbstractWidget widget : widgets) {
+				widget.extractRenderState(graphics, mouseX, mouseY, partialTick);
+			}
+
+			drawFolder(graphics, folderButton.getX() + (folderButton.getWidth() - 14) / 2,
+				folderButton.getY() + (folderButton.getHeight() - 11) / 2, folderButton.active);
+
+			boolean enabled = IconSettings.useLiquidGlass();
+			graphics.text(font, BACKGROUND_LABEL, colorRowX, colorY + (20 - font.lineHeight) / 2, enabled ? 0xFFFFFFFF : 0xFF707070);
+			graphics.fill(swatchX, colorY, swatchX + SWATCH_SIZE, colorY + SWATCH_SIZE, 0xFF000000 | backgroundColor);
+			graphics.outline(swatchX, colorY, SWATCH_SIZE, SWATCH_SIZE, enabled ? 0xFFFFFFFF : 0xFF707070);
+		}
 	}
 
 	private void refresh() {
 		Path custom = IconSettings.customIcon();
-		iconName = custom == null ? "Default" : custom.getFileName().toString();
 		resetButton.active = Mochaccino.isMacOS() && custom != null;
+		pathBox.setValue(custom == null ? "" : custom.toString());
+		pathBox.moveCursorToStart(false);
 		refreshPreview();
-		placeWidgets();
 	}
 
 	private void refreshPreview() {
@@ -212,20 +255,12 @@ public class MochaccinoOptionsScreen extends OptionsSubScreen {
 		}
 	}
 
-	@Override
-	public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
-		super.extractRenderState(graphics, mouseX, mouseY, partialTick);
-
-		graphics.text(font, fit(iconName, MAX_NAME_WIDTH), rowLeft() + PREVIEW_SIZE + MARGIN, rowTop(), 0xFFFFFFFF);
-
-		if (colorBox != null) {
-			boolean enabled = IconSettings.useLiquidGlass();
-			int labelX = (width - (font.width(BACKGROUND_LABEL) + MARGIN + SWATCH_SIZE + MARGIN + COLOR_FIELD_WIDTH)) / 2;
-			int swatchX = labelX + font.width(BACKGROUND_LABEL) + MARGIN;
-			graphics.text(font, BACKGROUND_LABEL, labelX, colorBox.getY() + (20 - font.lineHeight) / 2, enabled ? 0xFFFFFFFF : 0xFF707070);
-			graphics.fill(swatchX, colorBox.getY(), swatchX + SWATCH_SIZE, colorBox.getY() + SWATCH_SIZE, 0xFF000000 | backgroundColor);
-			graphics.outline(swatchX, colorBox.getY(), SWATCH_SIZE, SWATCH_SIZE, enabled ? 0xFFFFFFFF : 0xFF707070);
-		}
+	private static void drawFolder(GuiGraphicsExtractor graphics, int x, int y, boolean active) {
+		int back = active ? 0xFFC9962B : 0xFF6B5A30;
+		int front = active ? 0xFFF2C14E : 0xFF8A7440;
+		graphics.fill(x, y, x + 6, y + 3, back);
+		graphics.fill(x, y + 2, x + 14, y + 11, back);
+		graphics.fill(x, y + 4, x + 14, y + 11, front);
 	}
 
 	private void colorTyped(String text) {
@@ -245,17 +280,6 @@ public class MochaccinoOptionsScreen extends OptionsSubScreen {
 		backgroundColor = color;
 		IconSettings.setBackgroundColor(color);
 		IconSettings.applyNow(this::refresh);
-	}
-
-	// shortens the text with an ellipsis so it fits the width
-	private String fit(String text, int maxWidth) {
-		if (font.width(text) <= maxWidth) {
-			return text;
-		}
-		while (!text.isEmpty() && font.width(text + "…") > maxWidth) {
-			text = text.substring(0, text.length() - 1);
-		}
-		return text + "…";
 	}
 
 	@Override
@@ -315,7 +339,7 @@ public class MochaccinoOptionsScreen extends OptionsSubScreen {
 
 	private class IconWidget extends AbstractWidget {
 		IconWidget() {
-			super(0, 0, PREVIEW_SIZE, PREVIEW_SIZE, Component.literal("Choose icon"));
+			super(0, 0, PREVIEW_SIZE, PREVIEW_SIZE, Component.literal("Icon preview"));
 		}
 
 		@Override
@@ -325,14 +349,6 @@ public class MochaccinoOptionsScreen extends OptionsSubScreen {
 			} else {
 				graphics.fill(getX(), getY(), getX() + PREVIEW_SIZE, getY() + PREVIEW_SIZE, 0xFF303030);
 			}
-			if (active && isHoveredOrFocused()) {
-				graphics.outline(getX(), getY(), PREVIEW_SIZE, PREVIEW_SIZE, 0xFFFFFFFF);
-			}
-		}
-
-		@Override
-		public void onClick(MouseButtonEvent event, boolean doubleClick) {
-			chooseIcon();
 		}
 
 		@Override
