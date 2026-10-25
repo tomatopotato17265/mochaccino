@@ -51,24 +51,6 @@ public class MochaccinoOptionsScreen extends OptionsSubScreen {
 	private static final int PATH_ROW_HEIGHT = 20;
 	private static final int PATH_GAP = 4;
 	private static final int COLOR_FIELD_WIDTH = 70;
-	private static final int PRESET_SIZE = 16;
-	private static final int PRESET_GAP = 4;
-	private static final Preset[] PRESETS = {
-		new Preset("White", 0xFFFFFF),
-		new Preset("macOS Dark", 0x161616),
-		new Preset("Black", 0x000000),
-		new Preset("Gray", 0x8E8E93),
-		new Preset("Red", 0xFF3B30),
-		new Preset("Orange", 0xFF9500),
-		new Preset("Yellow", 0xFFCC00),
-		new Preset("Green", 0x34C759),
-		new Preset("Blue", 0x007AFF),
-		new Preset("Purple", 0xAF52DE),
-		new Preset("Pink", 0xFF2D55),
-	};
-
-	private record Preset(String name, int rgb) {
-	}
 	private static final Component BACKGROUND_LABEL = Component.literal("Color");
 
 	private IconWidget iconWidget;
@@ -77,7 +59,6 @@ public class MochaccinoOptionsScreen extends OptionsSubScreen {
 	private EditBox colorBox;
 	private Button folderButton;
 	private EditBox pathBox;
-	private PresetRow presetRow;
 	private ScaleSlider scaleSlider;
 	private ContentList contentList;
 
@@ -110,7 +91,7 @@ public class MochaccinoOptionsScreen extends OptionsSubScreen {
 
 	private int contentHeight() {
 		return MARGIN + PREVIEW_SIZE + NAME_GAP + 20 + MARGIN + PATH_ROW_HEIGHT + MARGIN + 20 + MARGIN + 20 + MARGIN
-			+ PRESET_SIZE + 4 + font.lineHeight + MARGIN + 20 + MARGIN;
+			+ 20 + MARGIN;
 	}
 
 	private class ContentList extends ContainerObjectSelectionList<ContentEntry> {
@@ -156,7 +137,6 @@ public class MochaccinoOptionsScreen extends OptionsSubScreen {
 					(button, value) -> {
 						IconSettings.setUseLiquidGlass(value);
 						colorBox.setEditable(value);
-						presetRow.active = value;
 						scaleSlider.active = value;
 						IconSettings.applyNow(MochaccinoOptionsScreen.this::refresh);
 					});
@@ -169,13 +149,10 @@ public class MochaccinoOptionsScreen extends OptionsSubScreen {
 			colorBox.setEditable(IconSettings.useLiquidGlass());
 			colorBox.setResponder(MochaccinoOptionsScreen.this::colorTyped);
 
-			presetRow = new PresetRow();
-			presetRow.active = IconSettings.useLiquidGlass();
-
 			scaleSlider = new ScaleSlider();
 			scaleSlider.active = IconSettings.useLiquidGlass();
 
-			widgets.addAll(List.of(resetButton, folderButton, pathBox, liquidGlassButton, colorBox, presetRow, scaleSlider));
+			widgets.addAll(List.of(resetButton, folderButton, pathBox, liquidGlassButton, colorBox, scaleSlider));
 		}
 
 		@Override
@@ -212,10 +189,8 @@ public class MochaccinoOptionsScreen extends OptionsSubScreen {
 			int swatchX = colorRowX + labelWidth + MARGIN;
 			colorBox.setX(swatchX + SWATCH_SIZE + MARGIN);
 			colorBox.setY(colorY);
-			presetRow.setX(centerX - presetRow.getWidth() / 2);
-			presetRow.setY(colorY + 20 + MARGIN);
 			scaleSlider.setX(centerX - LIQUID_GLASS_WIDTH / 2);
-			scaleSlider.setY(presetRow.getY() + PRESET_SIZE + 4 + font.lineHeight + MARGIN);
+			scaleSlider.setY(colorY + 20 + MARGIN);
 
 			iconWidget.extractRenderState(graphics, mouseX, mouseY, partialTick);
 			for (AbstractWidget widget : widgets) {
@@ -295,55 +270,6 @@ public class MochaccinoOptionsScreen extends OptionsSubScreen {
 	public void removed() {
 		Minecraft.getInstance().getTextureManager().release(PREVIEW_ID);
 		super.removed();
-	}
-
-	private class PresetRow extends AbstractWidget {
-		PresetRow() {
-			super(0, 0, PRESETS.length * PRESET_SIZE + (PRESETS.length - 1) * PRESET_GAP, PRESET_SIZE, Component.literal("Background presets"));
-		}
-
-		private int presetAt(double x, double y) {
-			if (y < getY() || y >= getY() + PRESET_SIZE || x < getX()) {
-				return -1;
-			}
-			int offset = (int) (x - getX());
-			int index = offset / (PRESET_SIZE + PRESET_GAP);
-			return index < PRESETS.length && offset % (PRESET_SIZE + PRESET_GAP) < PRESET_SIZE ? index : -1;
-		}
-
-		@Override
-		protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
-			int hovered = active ? presetAt(mouseX, mouseY) : -1;
-			for (int i = 0; i < PRESETS.length; i++) {
-				int x = getX() + i * (PRESET_SIZE + PRESET_GAP);
-				graphics.fill(x, getY(), x + PRESET_SIZE, getY() + PRESET_SIZE, 0xFF000000 | PRESETS[i].rgb());
-				boolean selected = PRESETS[i].rgb() == backgroundColor;
-
-				graphics.outline(x, getY(), PRESET_SIZE, PRESET_SIZE, !active ? 0xFF505050 : selected || i == hovered ? 0xFFFFFFFF : 0xFF707070);
-			}
-			if (hovered >= 0) {
-				graphics.centeredText(font, PRESETS[hovered].name(), getX() + getWidth() / 2, getY() + PRESET_SIZE + 4, 0xFFFFFFFF);
-			}
-		}
-
-		@Override
-		public void onClick(MouseButtonEvent event, boolean doubleClick) {
-			int index = presetAt(event.x(), event.y());
-			if (index >= 0) {
-				// typing the color in is how every other change is applied, so this does the same
-				colorBox.setValue(String.format("#%06X", PRESETS[index].rgb()));
-			}
-		}
-
-		@Override
-		public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
-			return active && presetAt(event.x(), event.y()) >= 0 && super.mouseClicked(event, doubleClick);
-		}
-
-		@Override
-		protected void updateWidgetNarration(NarrationElementOutput output) {
-			defaultButtonNarrationText(output);
-		}
 	}
 
 	private class ScaleSlider extends AbstractSliderButton {
