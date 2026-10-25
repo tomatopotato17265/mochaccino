@@ -182,7 +182,7 @@ public final class MacMenuName {
 		return MemoryUtil.memAddress(stack.malloc(8).putLong(0, value));
 	}
 
-	// adds File, Edit and View after the application menu, and Help after the existing Window menu
+	// adds File and Edit after the application menu, and Help after the existing Window menu
 	public static void addStandardMenus() {
 		long app = send(ObjCRuntime.objc_getClass("NSApplication"), "sharedApplication");
 		long mainMenu = send(app, "mainMenu");
@@ -197,11 +197,6 @@ public final class MacMenuName {
 		addItem(editMenu, "Copy", "copy:", "c");
 		addItem(editMenu, "Paste", "paste:", "v");
 		addItem(editMenu, "Select All", "selectAll:", "a");
-
-		long view = addMenu(mainMenu, "View", 3L);
-		long fullScreen = addItem(view, "Enter Full Screen", "toggleFullScreen:", "f");
-
-		send(fullScreen, "setKeyEquivalentModifierMask:", (1L << 20) | (1L << 18));
 
 		long windowMenu = send(app, "windowsMenu");
 		if (windowMenu != ObjCRuntime.nil && !hasKeyEquivalent(windowMenu, "w")) {
