@@ -6,7 +6,9 @@
 		"ExampleMixin"
 	],
 	"client": [
-		"OptionsScreenMixin"
+		"OptionsScreenMixin",
+		"PackSelectionModelAccessor",
+		"PackSelectionScreenMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

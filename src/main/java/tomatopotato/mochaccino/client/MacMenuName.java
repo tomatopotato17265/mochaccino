@@ -319,6 +319,34 @@ public final class MacMenuName {
 		return item;
 	}
 
+	public static void removeAllItems(long menu) {
+		long count = send(menu, "numberOfItems");
+		for (long i = 0; i < count; i++) {
+			senderHandlers.remove(send(menu, "itemAtIndex:", i));
+		}
+		send(menu, "removeAllItems");
+	}
+
+	public static void setMenuOpenListener(long menu, Runnable listener) {
+		if (menuOpenCallback == null) {
+			if (actionTarget == ObjCRuntime.nil) {
+				registerTarget();
+			}
+			menuOpenCallback = new SenderCallback(opened -> {
+				Runnable handler = menuOpenHandlers.get(opened);
+				if (handler != null) {
+					handler.run();
+				}
+			});
+			ObjCRuntime.class_addMethod(actionTargetClass, ObjCRuntime.sel_registerName("menuNeedsUpdate:"), menuOpenCallback.address(), "v@:@");
+		}
+		menuOpenHandlers.put(menu, listener);
+		send(menu, "setDelegate:", actionTarget);
+	}
+
+	private static final java.util.Map<Long, Runnable> menuOpenHandlers = new java.util.HashMap<>();
+	private static SenderCallback menuOpenCallback;
+
 	// brings the game's window to the front
 	public static void activateApp() {
 		send(send(ObjCRuntime.objc_getClass("NSApplication"), "sharedApplication"), "activateIgnoringOtherApps:", 1L);

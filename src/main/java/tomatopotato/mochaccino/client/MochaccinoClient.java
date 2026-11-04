@@ -96,6 +96,7 @@ public class MochaccinoClient implements ClientModInitializer {
 				}
 			}));
 			ModsMenu.install();
+			ResourcePacksMenu.install(client);
 		} catch (Throwable t) {
 			Mochaccino.LOGGER.warn("Could not set up the macOS menu bar", t);
 		}
